@@ -68,22 +68,22 @@ running on `http://localhost:5173`.
 
 ### Properties
 
-| Method | Endpoint                | Auth   | Description             |
-| ------ | ----------------------- | ------ | ----------------------- |
-| GET    | `/v1/properties`        | public | List/search properties  |
-| GET    | `/v1/properties/:id`    | public | Get a single property   |
-| POST   | `/v1/properties`        | agent  | Create a listing        |
-| PATCH  | `/v1/properties/:id`    | agent  | Update own listing      |
-| DELETE | `/v1/properties/:id`    | agent  | Delete own listing      |
-| GET    | `/v1/properties/stream` | user   | SSE stream of changes   |
+| Method | Endpoint                | Auth   | Description            |
+| ------ | ----------------------- | ------ | ---------------------- |
+| GET    | `/v1/properties`        | public | List/search properties |
+| GET    | `/v1/properties/:id`    | public | Get a single property  |
+| POST   | `/v1/properties`        | agent  | Create a listing       |
+| PATCH  | `/v1/properties/:id`    | agent  | Update own listing     |
+| DELETE | `/v1/properties/:id`    | agent  | Delete own listing     |
+| GET    | `/v1/properties/stream` | user   | SSE stream of changes  |
 
 ### Favorites
 
-| Method | Endpoint             | Auth | Description       |
-| ------ | -------------------- | ---- | ----------------- |
-| POST   | `/v1/favorites`      | user | Save a favorite   |
-| GET    | `/v1/favorites`      | user | List own favorites|
-| DELETE | `/v1/favorites/:id`  | user | Remove a favorite |
+| Method | Endpoint            | Auth | Description        |
+| ------ | ------------------- | ---- | ------------------ |
+| POST   | `/v1/favorites`     | user | Save a favorite    |
+| GET    | `/v1/favorites`     | user | List own favorites |
+| DELETE | `/v1/favorites/:id` | user | Remove a favorite  |
 
 ---
 
@@ -177,11 +177,11 @@ Note: `user_id` is automatically injected from the user's JWT.
 
 ## Roles & Permissions
 
-| Role     | Properties                           | Favorites                  |
-| -------- | ------------------------------------ | -------------------------- |
-| `public` | read                                 | -                          |
-| `user`   | read                                 | create, read, delete (own) |
-| `agent`  | create, read, update, delete (own)   | -                          |
+| Role     | Properties                         | Favorites                  |
+| -------- | ---------------------------------- | -------------------------- |
+| `public` | read                               | -                          |
+| `user`   | read                               | create, read, delete (own) |
+| `agent`  | create, read, update, delete (own) | -                          |
 
 **Auto-injection (check constraints):**
 
@@ -213,7 +213,8 @@ ensuring data integrity.
 - [ ] Browse properties without auth (public access)
 - [ ] Filter by price, bedrooms, property type, city
 - [ ] Sort by price ascending/descending
-- [ ] Create a listing as an agent (verify `listed_by` and `agent_name` auto-injected)
+- [ ] Create a listing as an agent (verify `listed_by` and `agent_name`
+      auto-injected)
 - [ ] Update own listing as an agent
 - [ ] Verify agent cannot update another agent's listing
 - [ ] Save a favorite as a user (verify `user_id` auto-injected)

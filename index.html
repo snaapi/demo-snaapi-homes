@@ -1,264 +1,376 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Snaapi Homes</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: { 50: '#fefce8', 100: '#fef9c3', 200: '#fef08a', 400: '#facc15', 500: '#eab308', 600: '#ca8a04', 700: '#a16207' },
-          }
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snaapi Homes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: "#fefce8",
+                100: "#fef9c3",
+                200: "#fef08a",
+                400: "#facc15",
+                500: "#eab308",
+                600: "#ca8a04",
+                700: "#a16207",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(100%);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
         }
       }
-    }
-  </script>
-  <style>
-    @keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
-    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
-    .event-enter { animation: slideIn 0.25s ease-out; }
-    .event-exit { animation: fadeOut 0.3s ease-out forwards; }
-    .skeleton { background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-  </style>
-</head>
-<body class="bg-gray-50 text-slate-800 min-h-screen flex flex-col">
+      @keyframes fadeOut {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+          transform: translateY(-8px);
+        }
+      }
+      .event-enter {
+        animation: slideIn 0.25s ease-out;
+      }
+      .event-exit {
+        animation: fadeOut 0.3s ease-out forwards;
+      }
+      .skeleton {
+        background: linear-gradient(
+          90deg,
+          #e5e7eb 25%,
+          #f3f4f6 50%,
+          #e5e7eb 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+      }
+      @keyframes shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50 text-slate-800 min-h-screen flex flex-col">
+    <script>
+      const API_BASE = "http://localhost:5173";
 
-<script>
-const API_BASE = "http://localhost:5173";
+      const state = {
+        apiKey: localStorage.getItem("snaapi_homes_key") || "",
+        connected: false,
+        properties: [],
+        favorites: new Map(),
+        total: 0,
+        loading: true,
+        events: [],
+        sseAbort: null,
+      };
 
-const state = {
-  apiKey: localStorage.getItem("snaapi_homes_key") || "",
-  connected: false,
-  properties: [],
-  favorites: new Map(),
-  total: 0,
-  loading: true,
-  events: [],
-  sseAbort: null,
-};
+      // --- Helpers ---
 
-// --- Helpers ---
+      function $(id) {
+        return document.getElementById(id);
+      }
 
-function $(id) { return document.getElementById(id); }
+      function fmt(price) {
+        return "$" + Number(price).toLocaleString("en-US");
+      }
 
-function fmt(price) {
-  return "$" + Number(price).toLocaleString("en-US");
-}
+      function headers(auth = false) {
+        const h = { "Content-Type": "application/json" };
+        if (auth && state.apiKey) {
+          h["Authorization"] = `Bearer ${state.apiKey}`;
+        }
+        return h;
+      }
 
-function headers(auth = false) {
-  const h = { "Content-Type": "application/json" };
-  if (auth && state.apiKey) h["Authorization"] = `Bearer ${state.apiKey}`;
-  return h;
-}
+      function timeSince(date) {
+        const s = Math.floor((Date.now() - date) / 1000);
+        if (s < 60) return "just now";
+        if (s < 3600) return Math.floor(s / 60) + "m ago";
+        return Math.floor(s / 3600) + "h ago";
+      }
 
-function timeSince(date) {
-  const s = Math.floor((Date.now() - date) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return Math.floor(s / 60) + "m ago";
-  return Math.floor(s / 3600) + "h ago";
-}
+      // --- API ---
 
-// --- API ---
+      async function fetchProperties() {
+        if (!state.properties.length) {
+          state.loading = true;
+          renderGrid();
+        }
 
-async function fetchProperties() {
-  if (!state.properties.length) {
-    state.loading = true;
-    renderGrid();
-  }
+        const params = new URLSearchParams();
+        params.set("_sort", "-price");
 
-  const params = new URLSearchParams();
-  params.set("_sort", "-price");
+        const minPrice = $("filter-min")?.value;
+        const maxPrice = $("filter-max")?.value;
+        const beds = $("filter-beds")?.value;
+        const city = $("filter-city")?.value;
+        const status = $("filter-status")?.value;
 
-  const minPrice = $("filter-min")?.value;
-  const maxPrice = $("filter-max")?.value;
-  const beds = $("filter-beds")?.value;
-  const city = $("filter-city")?.value;
-  const status = $("filter-status")?.value;
+        if (minPrice) params.set("price__gte", minPrice);
+        if (maxPrice) params.set("price__lte", maxPrice);
+        if (beds) params.set("bedrooms__gte", beds);
+        if (city) params.set("city__ilike", `%${city}%`);
+        if (status) params.set("status__eq", status);
 
-  if (minPrice) params.set("price__gte", minPrice);
-  if (maxPrice) params.set("price__lte", maxPrice);
-  if (beds) params.set("bedrooms__gte", beds);
-  if (city) params.set("city__ilike", `%${city}%`);
-  if (status) params.set("status__eq", status);
+        const types = [];
+        document.querySelectorAll(".filter-type:checked").forEach(
+          (cb) => types.push(cb.value),
+        );
+        if (types.length === 1) {
+          params.set("property_type__eq", types[0]);
+        } else if (types.length > 1) {
+          params.set("property_type__in", JSON.stringify(types));
+        }
 
-  const types = [];
-  document.querySelectorAll(".filter-type:checked").forEach(cb => types.push(cb.value));
-  if (types.length === 1) params.set("property_type__eq", types[0]);
-  else if (types.length > 1) params.set("property_type__in", JSON.stringify(types));
+        try {
+          const res = await fetch(
+            `${API_BASE}/v1/properties?${params}`,
+            { headers: headers(!!state.apiKey) },
+          );
+          const json = await res.json();
+          state.properties = json.data || [];
+          state.total = json.meta?.total ?? state.properties.length;
+        } catch (e) {
+          state.properties = [];
+          state.total = 0;
+        }
 
-  try {
-    const res = await fetch(`${API_BASE}/v1/properties?${params}`, { headers: headers(!!state.apiKey) });
-    const json = await res.json();
-    state.properties = json.data || [];
-    state.total = json.meta?.total ?? state.properties.length;
-  } catch (e) {
-    state.properties = [];
-    state.total = 0;
-  }
+        state.loading = false;
+        renderGrid();
+        renderCount();
+      }
 
-  state.loading = false;
-  renderGrid();
-  renderCount();
-}
+      async function loadFavorites() {
+        if (!state.apiKey) return;
+        try {
+          const res = await fetch(
+            `${API_BASE}/v1/favorites?include=property`,
+            { headers: headers(true) },
+          );
+          if (!res.ok) return;
+          const json = await res.json();
+          state.favorites.clear();
+          (json.data || []).forEach((f) =>
+            state.favorites.set(f.attributes.property_id, f.id)
+          );
+        } catch {}
+        renderGrid();
+      }
 
-async function loadFavorites() {
-  if (!state.apiKey) return;
-  try {
-    const res = await fetch(`${API_BASE}/v1/favorites?include=property`, { headers: headers(true) });
-    if (!res.ok) return;
-    const json = await res.json();
-    state.favorites.clear();
-    (json.data || []).forEach(f => state.favorites.set(f.attributes.property_id, f.id));
-  } catch {}
-  renderGrid();
-}
-
-async function toggleFavorite(propertyId) {
-  if (!state.apiKey) return;
-  if (state.favorites.has(propertyId)) {
-    const favId = state.favorites.get(propertyId);
-    await fetch(`${API_BASE}/v1/favorites/${favId}`, { method: "DELETE", headers: headers(true) });
-    state.favorites.delete(propertyId);
-  } else {
-    const res = await fetch(`${API_BASE}/v1/favorites`, {
-      method: "POST", headers: headers(true),
-      body: JSON.stringify({ property_id: propertyId }),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      state.favorites.set(propertyId, json.data.id);
-    }
-  }
-  renderGrid();
-}
-
-// --- SSE ---
-
-function connectSSE() {
-  if (state.sseAbort) state.sseAbort.abort();
-  if (!state.apiKey) return;
-
-  const ctrl = new AbortController();
-  state.sseAbort = ctrl;
-
-  console.log("[SSE] Connecting to properties stream...");
-  fetch(`${API_BASE}/v1/properties/stream?events=created,updated`, {
-    headers: { "Authorization": `Bearer ${state.apiKey}` },
-    signal: ctrl.signal,
-  }).then(res => {
-    if (!res.ok) {
-      console.error("[SSE] Connection failed:", res.status, res.statusText);
-      return res.text().then(t => console.error("[SSE] Response:", t));
-    }
-    if (!res.body) { console.error("[SSE] No response body"); return; }
-    console.log("[SSE] Connected, reading stream...");
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    function read() {
-      reader.read().then(({ done, value }) => {
-        if (done) { console.log("[SSE] Stream ended"); return; }
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop();
-
-        parts.forEach(block => {
-          let eventType = "", data = "";
-          block.split("\n").forEach(line => {
-            if (line.startsWith("event:")) eventType = line.slice(6).trim();
-            if (line.startsWith("data:")) data = line.slice(5).trim();
+      async function toggleFavorite(propertyId) {
+        if (!state.apiKey) return;
+        if (state.favorites.has(propertyId)) {
+          const favId = state.favorites.get(propertyId);
+          await fetch(`${API_BASE}/v1/favorites/${favId}`, {
+            method: "DELETE",
+            headers: headers(true),
           });
-          if (eventType && data) {
-            console.log("[SSE] Event:", eventType);
-            try {
-              const parsed = JSON.parse(data);
-              addEvent(eventType, parsed);
-            } catch (e) { console.error("[SSE] Parse error:", e); }
+          state.favorites.delete(propertyId);
+        } else {
+          const res = await fetch(`${API_BASE}/v1/favorites`, {
+            method: "POST",
+            headers: headers(true),
+            body: JSON.stringify({ property_id: propertyId }),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            state.favorites.set(propertyId, json.data.id);
+          }
+        }
+        renderGrid();
+      }
+
+      // --- SSE ---
+
+      function connectSSE() {
+        if (state.sseAbort) state.sseAbort.abort();
+        if (!state.apiKey) return;
+
+        const ctrl = new AbortController();
+        state.sseAbort = ctrl;
+
+        console.log("[SSE] Connecting to properties stream...");
+        fetch(
+          `${API_BASE}/v1/properties/stream?events=created,updated`,
+          {
+            headers: { "Authorization": `Bearer ${state.apiKey}` },
+            signal: ctrl.signal,
+          },
+        ).then((res) => {
+          if (!res.ok) {
+            console.error(
+              "[SSE] Connection failed:",
+              res.status,
+              res.statusText,
+            );
+            return res.text().then((t) =>
+              console.error("[SSE] Response:", t)
+            );
+          }
+          if (!res.body) {
+            console.error("[SSE] No response body");
+            return;
+          }
+          console.log("[SSE] Connected, reading stream...");
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          function read() {
+            reader.read().then(({ done, value }) => {
+              if (done) {
+                console.log("[SSE] Stream ended");
+                return;
+              }
+              buffer += decoder.decode(value, { stream: true });
+              const parts = buffer.split("\n\n");
+              buffer = parts.pop();
+
+              parts.forEach((block) => {
+                let eventType = "", data = "";
+                block.split("\n").forEach((line) => {
+                  if (line.startsWith("event:")) {
+                    eventType = line.slice(6).trim();
+                  }
+                  if (line.startsWith("data:")) {
+                    data = line.slice(5).trim();
+                  }
+                });
+                if (eventType && data) {
+                  console.log("[SSE] Event:", eventType);
+                  try {
+                    const parsed = JSON.parse(data);
+                    addEvent(eventType, parsed);
+                  } catch (e) {
+                    console.error("[SSE] Parse error:", e);
+                  }
+                }
+              });
+              read();
+            }).catch((e) => {
+              if (e.name !== "AbortError") {
+                console.error("[SSE] Read error:", e);
+              }
+            });
+          }
+          read();
+        }).catch((e) => {
+          if (e.name !== "AbortError") {
+            console.error("[SSE] Fetch error:", e);
           }
         });
-        read();
-      }).catch(e => { if (e.name !== "AbortError") console.error("[SSE] Read error:", e); });
-    }
-    read();
-  }).catch(e => { if (e.name !== "AbortError") console.error("[SSE] Fetch error:", e); });
-}
+      }
 
-function addEvent(type, payload) {
-  const rec = payload.new || payload.old || {};
-  const label = type.includes("created") ? "New" : type.includes("updated") ? "Updated" : "Sold";
-  const ev = { id: Date.now() + Math.random(), label, title: rec.title || "Property", price: rec.price, time: new Date() };
+      function addEvent(type, payload) {
+        const rec = payload.new || payload.old || {};
+        const label = type.includes("created")
+          ? "New"
+          : type.includes("updated")
+          ? "Updated"
+          : "Sold";
+        const ev = {
+          id: Date.now() + Math.random(),
+          label,
+          title: rec.title || "Property",
+          price: rec.price,
+          time: new Date(),
+        };
 
-  state.events.unshift(ev);
-  if (state.events.length > 5) state.events = state.events.slice(0, 5);
-  renderEvents();
-
-  setTimeout(() => {
-    const el = document.querySelector(`[data-event-id="${ev.id}"]`);
-    if (el) {
-      el.classList.add("event-exit");
-      el.addEventListener("animationend", () => {
-        state.events = state.events.filter(e => e.id !== ev.id);
+        state.events.unshift(ev);
+        if (state.events.length > 5) {
+          state.events = state.events.slice(0, 5);
+        }
         renderEvents();
-      });
-    }
-  }, 10000);
 
-  if (type.includes("created") || type.includes("updated")) fetchProperties();
-}
+        setTimeout(() => {
+          const el = document.querySelector(
+            `[data-event-id="${ev.id}"]`,
+          );
+          if (el) {
+            el.classList.add("event-exit");
+            el.addEventListener("animationend", () => {
+              state.events = state.events.filter((e) => e.id !== ev.id);
+              renderEvents();
+            });
+          }
+        }, 10000);
 
-// --- Auth ---
+        if (type.includes("created") || type.includes("updated")) {
+          fetchProperties();
+        }
+      }
 
-function connect() {
-  const key = $("api-key-input").value.trim();
-  if (!key) return;
-  state.apiKey = key;
-  state.connected = true;
-  localStorage.setItem("snaapi_homes_key", key);
-  renderAuth();
-  loadFavorites();
-  connectSSE();
-  renderGrid();
-}
+      // --- Auth ---
 
-function disconnect() {
-  state.apiKey = "";
-  state.connected = false;
-  state.favorites.clear();
-  localStorage.removeItem("snaapi_homes_key");
-  if (state.sseAbort) state.sseAbort.abort();
-  state.sseAbort = null;
-  state.events = [];
-  renderAuth();
-  renderGrid();
-  renderEvents();
-}
+      function connect() {
+        const key = $("api-key-input").value.trim();
+        if (!key) return;
+        state.apiKey = key;
+        state.connected = true;
+        localStorage.setItem("snaapi_homes_key", key);
+        renderAuth();
+        loadFavorites();
+        connectSSE();
+        renderGrid();
+      }
 
-// --- Rendering ---
+      function disconnect() {
+        state.apiKey = "";
+        state.connected = false;
+        state.favorites.clear();
+        localStorage.removeItem("snaapi_homes_key");
+        if (state.sseAbort) state.sseAbort.abort();
+        state.sseAbort = null;
+        state.events = [];
+        renderAuth();
+        renderGrid();
+        renderEvents();
+      }
 
-function renderAuth() {
-  $("auth-section").innerHTML = state.connected
-    ? `<div class="flex items-center gap-3">
+      // --- Rendering ---
+
+      function renderAuth() {
+        $("auth-section").innerHTML = state.connected
+          ? `<div class="flex items-center gap-3">
         <span class="flex items-center gap-1.5 text-sm text-emerald-700"><span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>Connected</span>
         <button onclick="disconnect()" class="text-sm text-slate-500 hover:text-slate-700 underline underline-offset-2">Disconnect</button>
       </div>`
-    : `<form onsubmit="event.preventDefault(); connect();" class="flex items-center gap-2">
+          : `<form onsubmit="event.preventDefault(); connect();" class="flex items-center gap-2">
         <input id="api-key-input" type="password" placeholder="API key or token" value="${state.apiKey}"
           class="w-48 sm:w-56 px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400">
         <button type="submit" class="px-3.5 py-1.5 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors">Connect</button>
       </form>`;
-}
+      }
 
-function renderCount() {
-  $("results-count").textContent = `${state.total} propert${state.total === 1 ? "y" : "ies"} found`;
-}
+      function renderCount() {
+        $("results-count").textContent = `${state.total} propert${
+          state.total === 1 ? "y" : "ies"
+        } found`;
+      }
 
-function skeletonCard() {
-  return `<div class="bg-white rounded-xl overflow-hidden border border-slate-100">
+      function skeletonCard() {
+        return `<div class="bg-white rounded-xl overflow-hidden border border-slate-100">
     <div class="skeleton h-48 w-full"></div>
     <div class="p-4 space-y-3">
       <div class="skeleton h-5 w-24 rounded"></div>
@@ -266,152 +378,236 @@ function skeletonCard() {
       <div class="skeleton h-4 w-3/4 rounded"></div>
     </div>
   </div>`;
-}
+      }
 
-function propertyCard(item) {
-  const a = item.attributes;
-  const isFav = state.favorites.has(item.id);
-  const img = a.image_url
-    ? `<img src="${a.image_url}" alt="${a.title}" class="w-full h-48 object-cover">`
-    : `<div class="w-full h-48 bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+      function propertyCard(item) {
+        const a = item.attributes;
+        const isFav = state.favorites.has(item.id);
+        const img = a.image_url
+          ? `<img src="${a.image_url}" alt="${a.title}" class="w-full h-48 object-cover">`
+          : `<div class="w-full h-48 bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
         <svg class="w-12 h-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
       </div>`;
 
-  const statusBadge = a.status === "active"
-    ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Active</span>'
-    : a.status === "pending"
-    ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Pending</span>'
-    : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Sold</span>';
+        const statusBadge = a.status === "active"
+          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Active</span>'
+          : a.status === "pending"
+          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Pending</span>'
+          : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Sold</span>';
 
-  const heartBtn = state.connected
-    ? `<button onclick="event.stopPropagation(); toggleFavorite('${item.id}')" class="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 hover:bg-white shadow-sm transition-colors" aria-label="Toggle favorite">
-        <svg class="w-5 h-5 ${isFav ? "text-red-500 fill-red-500" : "text-slate-400"}" fill="${isFav ? "currentColor" : "none"}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
-      </button>` : "";
+        const heartBtn = state.connected
+          ? `<button onclick="event.stopPropagation(); toggleFavorite('${item.id}')" class="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 hover:bg-white shadow-sm transition-colors" aria-label="Toggle favorite">
+        <svg class="w-5 h-5 ${
+            isFav ? "text-red-500 fill-red-500" : "text-slate-400"
+          }" fill="${
+            isFav ? "currentColor" : "none"
+          }" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+      </button>`
+          : "";
 
-  return `<div class="bg-white rounded-xl overflow-hidden border border-slate-100 hover:shadow-md transition-shadow">
+        return `<div class="bg-white rounded-xl overflow-hidden border border-slate-100 hover:shadow-md transition-shadow">
     <div class="relative">${img}${heartBtn}
       <div class="absolute bottom-3 left-3">${statusBadge}</div>
     </div>
     <div class="p-4">
-      <p class="text-xl font-semibold text-slate-900">${fmt(a.price)}</p>
+      <p class="text-xl font-semibold text-slate-900">${
+          fmt(a.price)
+        }</p>
       <h3 class="mt-1 text-sm font-medium text-slate-700 truncate">${a.title}</h3>
       <div class="mt-2 flex items-center gap-3 text-xs text-slate-500">
         <span>${a.bedrooms} bd</span><span class="text-slate-300">|</span>
         <span>${a.bathrooms} ba</span><span class="text-slate-300">|</span>
-        <span>${a.sqft ? a.sqft.toLocaleString() + " sqft" : "--"}</span>
+        <span>${
+          a.sqft ? a.sqft.toLocaleString() + " sqft" : "--"
+        }</span>
       </div>
       <p class="mt-2 text-xs text-slate-500 truncate">${a.address}, ${a.city}, ${a.state} ${a.zip_code}</p>
-      ${a.agent_name ? `<p class="mt-2 text-xs text-slate-400">${a.agent_name}</p>` : ""}
+      ${
+          a.agent_name
+            ? `<p class="mt-2 text-xs text-slate-400">${a.agent_name}</p>`
+            : ""
+        }
     </div>
   </div>`;
-}
+      }
 
-function renderGrid() {
-  const grid = $("property-grid");
-  if (state.loading) {
-    grid.innerHTML = Array(6).fill(skeletonCard()).join("");
-    return;
-  }
-  if (!state.properties.length) {
-    grid.innerHTML = `<div class="col-span-full py-20 text-center text-slate-400">No properties found. Try adjusting your filters.</div>`;
-    return;
-  }
-  grid.innerHTML = state.properties.map(propertyCard).join("");
-}
+      function renderGrid() {
+        const grid = $("property-grid");
+        if (state.loading) {
+          grid.innerHTML = Array(6).fill(skeletonCard()).join("");
+          return;
+        }
+        if (!state.properties.length) {
+          grid.innerHTML =
+            `<div class="col-span-full py-20 text-center text-slate-400">No properties found. Try adjusting your filters.</div>`;
+          return;
+        }
+        grid.innerHTML = state.properties.map(propertyCard).join("");
+      }
 
-function renderEvents() {
-  const container = $("event-feed");
-  container.innerHTML = state.events.map(ev => {
-    const colors = ev.label === "New" ? "bg-emerald-500" : ev.label === "Updated" ? "bg-amber-500" : "bg-slate-500";
-    return `<div data-event-id="${ev.id}" class="event-enter flex items-start gap-3 px-4 py-3 bg-white rounded-lg shadow-lg border border-slate-100 max-w-xs">
+      function renderEvents() {
+        const container = $("event-feed");
+        container.innerHTML = state.events.map((ev) => {
+          const colors = ev.label === "New"
+            ? "bg-emerald-500"
+            : ev.label === "Updated"
+            ? "bg-amber-500"
+            : "bg-slate-500";
+          return `<div data-event-id="${ev.id}" class="event-enter flex items-start gap-3 px-4 py-3 bg-white rounded-lg shadow-lg border border-slate-100 max-w-xs">
       <span class="shrink-0 mt-0.5 text-xs font-semibold text-white px-2 py-0.5 rounded ${colors}">${ev.label}</span>
       <div class="min-w-0">
         <p class="text-sm font-medium text-slate-800 truncate">${ev.title}</p>
-        <p class="text-xs text-slate-500">${ev.price ? fmt(ev.price) : ""} &middot; ${timeSince(ev.time)}</p>
+        <p class="text-xs text-slate-500">${
+            ev.price ? fmt(ev.price) : ""
+          } &middot; ${timeSince(ev.time)}</p>
       </div>
     </div>`;
-  }).join("");
-}
+        }).join("");
+      }
 
-// --- Init ---
+      // --- Init ---
 
-document.addEventListener("DOMContentLoaded", () => {
-  renderAuth();
-  fetchProperties();
-  if (state.apiKey) {
-    state.connected = true;
-    renderAuth();
-    loadFavorites();
-    connectSSE();
-  }
-});
-</script>
+      document.addEventListener("DOMContentLoaded", () => {
+        renderAuth();
+        fetchProperties();
+        if (state.apiKey) {
+          state.connected = true;
+          renderAuth();
+          loadFavorites();
+          connectSSE();
+        }
+      });
+    </script>
 
-<!-- Header -->
-<header class="bg-white border-b border-slate-100">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-    <h1 class="text-lg font-bold tracking-tight text-slate-900">Snaapi Homes</h1>
-    <div id="auth-section"></div>
-  </div>
-</header>
-
-<!-- Filters -->
-<div class="bg-white border-b border-slate-100">
-  <form onsubmit="event.preventDefault(); fetchProperties();" class="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-    <div class="flex flex-wrap items-end gap-3">
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">Price min</label>
-        <input id="filter-min" type="number" placeholder="0" class="w-28 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-100">
+      <div
+        class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between"
+      >
+        <h1 class="text-lg font-bold tracking-tight text-slate-900">
+          Snaapi Homes
+        </h1>
+        <div id="auth-section"></div>
       </div>
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">Price max</label>
-        <input id="filter-max" type="number" placeholder="Any" class="w-28 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50">
-      </div>
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">Beds</label>
-        <select id="filter-beds" class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50">
-          <option value="">Any</option>
-          <option value="1">1+</option>
-          <option value="2">2+</option>
-          <option value="3">3+</option>
-          <option value="4">4+</option>
-        </select>
-      </div>
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">Type</label>
-        <div class="flex items-center gap-3 py-1.5">
-          <label class="flex items-center gap-1 text-sm text-slate-600"><input type="checkbox" value="house" class="filter-type rounded text-amber-500 focus:ring-amber-400">House</label>
-          <label class="flex items-center gap-1 text-sm text-slate-600"><input type="checkbox" value="condo" class="filter-type rounded text-amber-500 focus:ring-amber-400">Condo</label>
-          <label class="flex items-center gap-1 text-sm text-slate-600"><input type="checkbox" value="townhouse" class="filter-type rounded text-amber-500 focus:ring-amber-400">Town</label>
-          <label class="flex items-center gap-1 text-sm text-slate-600"><input type="checkbox" value="apartment" class="filter-type rounded text-amber-500 focus:ring-amber-400">Apt</label>
+    </header>
+
+    <!-- Filters -->
+    <div class="bg-white border-b border-slate-100">
+      <form
+        onsubmit="event.preventDefault(); fetchProperties();"
+        class="max-w-7xl mx-auto px-4 sm:px-6 py-3"
+      >
+        <div class="flex flex-wrap items-end gap-3">
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Price min</label>
+            <input
+              id="filter-min"
+              type="number"
+              placeholder="0"
+              class="w-28 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+            >
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Price max</label>
+            <input
+              id="filter-max"
+              type="number"
+              placeholder="Any"
+              class="w-28 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+            >
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Beds</label>
+            <select
+              id="filter-beds"
+              class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+            >
+              <option value="">Any</option>
+              <option value="1">1+</option>
+              <option value="2">2+</option>
+              <option value="3">3+</option>
+              <option value="4">4+</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Type</label>
+            <div class="flex items-center gap-3 py-1.5">
+              <label
+                class="flex items-center gap-1 text-sm text-slate-600"
+              ><input
+                  type="checkbox"
+                  value="house"
+                  class="filter-type rounded text-amber-500 focus:ring-amber-400"
+                >House</label>
+              <label
+                class="flex items-center gap-1 text-sm text-slate-600"
+              ><input
+                  type="checkbox"
+                  value="condo"
+                  class="filter-type rounded text-amber-500 focus:ring-amber-400"
+                >Condo</label>
+              <label
+                class="flex items-center gap-1 text-sm text-slate-600"
+              ><input
+                  type="checkbox"
+                  value="townhouse"
+                  class="filter-type rounded text-amber-500 focus:ring-amber-400"
+                >Town</label>
+              <label
+                class="flex items-center gap-1 text-sm text-slate-600"
+              ><input
+                  type="checkbox"
+                  value="apartment"
+                  class="filter-type rounded text-amber-500 focus:ring-amber-400"
+                >Apt</label>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">City</label>
+            <input
+              id="filter-city"
+              type="text"
+              placeholder="Search city"
+              class="w-32 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+            >
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Status</label>
+            <select
+              id="filter-status"
+              class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+            >
+              <option value="">Any</option>
+              <option value="active" selected>Active</option>
+              <option value="pending">Pending</option>
+              <option value="sold">Sold</option>
+            </select>
+          </div>
+          <button
+            type="submit"
+            class="px-4 py-1.5 text-sm font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors"
+          >
+            Search
+          </button>
         </div>
-      </div>
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">City</label>
-        <input id="filter-city" type="text" placeholder="Search city" class="w-32 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50">
-      </div>
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">Status</label>
-        <select id="filter-status" class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50">
-          <option value="">Any</option>
-          <option value="active" selected>Active</option>
-          <option value="pending">Pending</option>
-          <option value="sold">Sold</option>
-        </select>
-      </div>
-      <button type="submit" class="px-4 py-1.5 text-sm font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors">Search</button>
+      </form>
     </div>
-  </form>
-</div>
 
-<!-- Main -->
-<main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
-  <p id="results-count" class="text-sm text-slate-500 mb-4"></p>
-  <div id="property-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
-</main>
+    <!-- Main -->
+    <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
+      <p id="results-count" class="text-sm text-slate-500 mb-4"></p>
+      <div
+        id="property-grid"
+        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
+      >
+      </div>
+    </main>
 
-<!-- Event Feed -->
-<div id="event-feed" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none [&>*]:pointer-events-auto"></div>
-
-</body>
+    <!-- Event Feed -->
+    <div
+      id="event-feed"
+      class="fixed bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none [&>*]:pointer-events-auto"
+    >
+    </div>
+  </body>
 </html>
