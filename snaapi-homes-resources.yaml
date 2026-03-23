@@ -1,0 +1,340 @@
+resources:
+  - name: properties
+    description: "Real estate property listings"
+    enableSoftDelete: false
+    enabled: true
+
+  - name: favorites
+    description: "User-saved favorite properties"
+    enableSoftDelete: false
+    enabled: true
+
+fields:
+  # Fields for properties
+  - resourceName: properties
+    name: title
+    type: string
+    required: true
+    sortable: true
+    searchable: true
+    unique: false
+    validations:
+      - rule: minLength
+        value: 3
+
+  - resourceName: properties
+    name: description
+    type: text
+    required: false
+    sortable: false
+    searchable: true
+    unique: false
+    contentType: description
+
+  - resourceName: properties
+    name: price
+    type: number
+    required: true
+    sortable: true
+    searchable: false
+    unique: false
+    contentType: currency
+
+  - resourceName: properties
+    name: bedrooms
+    type: number
+    required: true
+    sortable: true
+    searchable: false
+    unique: false
+    contentType: quantity
+    validations:
+      - rule: integer
+
+  - resourceName: properties
+    name: bathrooms
+    type: number
+    required: true
+    sortable: true
+    searchable: false
+    unique: false
+    contentType: quantity
+    validations:
+      - rule: integer
+
+  - resourceName: properties
+    name: sqft
+    type: number
+    required: false
+    sortable: true
+    searchable: false
+    unique: false
+    contentType: quantity
+
+  - resourceName: properties
+    name: property_type
+    type: enum
+    required: true
+    sortable: true
+    searchable: false
+    unique: false
+    enumValues:
+      - house
+      - condo
+      - townhouse
+      - apartment
+
+  - resourceName: properties
+    name: status
+    type: enum
+    required: true
+    sortable: true
+    searchable: false
+    unique: false
+    defaultValue: active
+    enumValues:
+      - active
+      - pending
+      - sold
+
+  - resourceName: properties
+    name: image_url
+    type: string
+    required: false
+    sortable: false
+    searchable: false
+    unique: false
+    contentType: image_url
+
+  - resourceName: properties
+    name: address
+    type: string
+    required: true
+    sortable: false
+    searchable: true
+    unique: false
+    contentType: address
+
+  - resourceName: properties
+    name: city
+    type: string
+    required: true
+    sortable: true
+    searchable: true
+    unique: false
+    contentType: city
+
+  - resourceName: properties
+    name: state
+    type: string
+    required: true
+    sortable: true
+    searchable: false
+    unique: false
+    contentType: state
+
+  - resourceName: properties
+    name: zip_code
+    type: string
+    required: true
+    sortable: false
+    searchable: false
+    unique: false
+    contentType: zip_code
+
+  - resourceName: properties
+    name: listed_by
+    type: uuid
+    required: true
+    sortable: false
+    searchable: false
+    unique: false
+
+  - resourceName: properties
+    name: agent_name
+    type: string
+    required: true
+    sortable: true
+    searchable: true
+    unique: false
+    contentType: full_name
+
+  # Fields for favorites
+  - resourceName: favorites
+    name: property_id
+    type: relation
+    required: true
+    sortable: true
+    searchable: false
+    unique: false
+    relations:
+      resource: properties
+      field: id
+      type: many-to-one
+
+  - resourceName: favorites
+    name: user_id
+    type: uuid
+    required: true
+    sortable: false
+    searchable: false
+    unique: false
+
+permissions:
+  # Properties — public can read
+  - resourceName: properties
+    role: public
+    action: read
+    fields:
+      - title
+      - description
+      - price
+      - bedrooms
+      - bathrooms
+      - sqft
+      - property_type
+      - status
+      - image_url
+      - address
+      - city
+      - state
+      - zip_code
+      - listed_by
+      - agent_name
+
+  # Properties — user can read
+  - resourceName: properties
+    role: user
+    action: read
+    fields:
+      - title
+      - description
+      - price
+      - bedrooms
+      - bathrooms
+      - sqft
+      - property_type
+      - status
+      - image_url
+      - address
+      - city
+      - state
+      - zip_code
+      - listed_by
+      - agent_name
+
+  # Properties — agent can create (listed_by and agent_name auto-injected)
+  - resourceName: properties
+    role: agent
+    action: create
+    fields:
+      - title
+      - description
+      - price
+      - bedrooms
+      - bathrooms
+      - sqft
+      - property_type
+      - status
+      - image_url
+      - address
+      - city
+      - state
+      - zip_code
+      - listed_by
+      - agent_name
+    checks:
+      - field: listed_by
+        operator: eq
+        claim: id
+      - field: agent_name
+        operator: eq
+        claim: name
+
+  # Properties — agent can read all
+  - resourceName: properties
+    role: agent
+    action: read
+    fields:
+      - title
+      - description
+      - price
+      - bedrooms
+      - bathrooms
+      - sqft
+      - property_type
+      - status
+      - image_url
+      - address
+      - city
+      - state
+      - zip_code
+      - listed_by
+      - agent_name
+
+  # Properties — agent can update own listings
+  - resourceName: properties
+    role: agent
+    action: update
+    fields:
+      - title
+      - description
+      - price
+      - bedrooms
+      - bathrooms
+      - sqft
+      - property_type
+      - status
+      - image_url
+      - address
+      - city
+      - state
+      - zip_code
+    filters:
+      - field: listed_by
+        operator: eq
+        claim: id
+
+  # Properties — agent can delete own listings
+  - resourceName: properties
+    role: agent
+    action: delete
+    fields: []
+    filters:
+      - field: listed_by
+        operator: eq
+        claim: id
+
+  # Favorites — user can create (user_id auto-injected)
+  - resourceName: favorites
+    role: user
+    action: create
+    fields:
+      - property_id
+      - user_id
+    checks:
+      - field: user_id
+        operator: eq
+        claim: id
+
+  # Favorites — user can read own
+  - resourceName: favorites
+    role: user
+    action: read
+    fields:
+      - property_id
+      - user_id
+    filters:
+      - field: user_id
+        operator: eq
+        claim: id
+
+  # Favorites — user can delete own
+  - resourceName: favorites
+    role: user
+    action: delete
+    fields: []
+    filters:
+      - field: user_id
+        operator: eq
+        claim: id
