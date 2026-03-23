@@ -1,4 +1,9 @@
 resources:
+  - name: users
+    description: "User profiles (synced from auth, read-only)"
+    readOnly: true
+    enabled: true
+
   - name: properties
     description: "Real estate property listings"
     enableSoftDelete: false
@@ -10,6 +15,42 @@ resources:
     enabled: true
 
 fields:
+  # Fields for users (read-only, synced from auth)
+  - resourceName: users
+    name: name
+    type: string
+    required: false
+    sortable: true
+    searchable: true
+    unique: false
+    contentType: full_name
+
+  - resourceName: users
+    name: email
+    type: string
+    required: false
+    sortable: false
+    searchable: false
+    unique: false
+    contentType: email
+
+  - resourceName: users
+    name: image
+    type: string
+    required: false
+    sortable: false
+    searchable: false
+    unique: false
+    contentType: image_url
+
+  - resourceName: users
+    name: primary_role
+    type: string
+    required: false
+    sortable: true
+    searchable: false
+    unique: false
+
   # Fields for properties
   - resourceName: properties
     name: title
@@ -144,20 +185,15 @@ fields:
 
   - resourceName: properties
     name: listed_by
-    type: uuid
+    type: relation
     required: true
     sortable: false
     searchable: false
     unique: false
-
-  - resourceName: properties
-    name: agent_name
-    type: string
-    required: true
-    sortable: true
-    searchable: true
-    unique: false
-    contentType: full_name
+    relations:
+      resource: users
+      field: id
+      type: many-to-one
 
   # Fields for favorites
   - resourceName: favorites
@@ -181,6 +217,35 @@ fields:
     unique: false
 
 permissions:
+  # Users — public can read name and image
+  - resourceName: users
+    role: public
+    action: read
+    fields:
+      - name
+      - image
+      - primary_role
+
+  # Users — authenticated users can also see email
+  - resourceName: users
+    role: user
+    action: read
+    fields:
+      - name
+      - email
+      - image
+      - primary_role
+
+  # Users — agents can read all user fields
+  - resourceName: users
+    role: agent
+    action: read
+    fields:
+      - name
+      - email
+      - image
+      - primary_role
+
   # Properties — public can read
   - resourceName: properties
     role: public
@@ -200,7 +265,6 @@ permissions:
       - state
       - zip_code
       - listed_by
-      - agent_name
 
   # Properties — user can read
   - resourceName: properties
@@ -221,9 +285,8 @@ permissions:
       - state
       - zip_code
       - listed_by
-      - agent_name
 
-  # Properties — agent can create (listed_by and agent_name auto-injected)
+  # Properties — agent can create (listed_by auto-injected)
   - resourceName: properties
     role: agent
     action: create
@@ -242,14 +305,10 @@ permissions:
       - state
       - zip_code
       - listed_by
-      - agent_name
     checks:
       - field: listed_by
         operator: eq
         claim: id
-      - field: agent_name
-        operator: eq
-        claim: name
 
   # Properties — agent can read all
   - resourceName: properties
@@ -270,7 +329,6 @@ permissions:
       - state
       - zip_code
       - listed_by
-      - agent_name
 
   # Properties — agent can update own listings
   - resourceName: properties
