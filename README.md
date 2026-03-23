@@ -35,23 +35,34 @@ who manage property listings.
 
 ### 3. Open the Frontend
 
-Serve the frontend on the same origin as Snaapi to avoid CORS issues. From this
-directory:
+The frontend makes API requests to a Snaapi instance (default
+`http://localhost:5173`). Because the frontend runs on a different port, you
+need to enable CORS in your Snaapi configuration, or use a reverse proxy that
+serves both on the same origin.
+
+**Option A: Enable CORS (simplest for development)**
+
+Add `http://localhost:4507` (or your frontend port) to the `CORS_ORIGINS`
+environment variable in your Snaapi `.env` file, then serve the frontend:
 
 ```bash
-# Option A: Use Deno's built-in file server
+# Deno file server (serves on port 4507)
 deno run --allow-net --allow-read jsr:@std/http/file-server .
 
-# Option B: Use Python
+# Or Python (serves on port 8000 — add http://localhost:8000 to CORS_ORIGINS)
 python3 -m http.server 8000
 ```
 
-Then open `http://localhost:4507` (Deno) or `http://localhost:8000` (Python) and
-update the `API_BASE` constant in `index.html` if your Snaapi instance isn't
-running on `http://localhost:5173`.
+**Option B: Reverse proxy (same origin, no CORS needed)**
 
-> **Note:** Opening `index.html` directly from `file://` will not work due to
-> browser CORS restrictions on cross-origin API requests.
+Configure a reverse proxy (e.g., nginx or Caddy) to serve both the Snaapi API
+and the static frontend from a single origin.
+
+Then open the frontend and update the `API_BASE` constant in `index.html` if
+your Snaapi instance isn't running on `http://localhost:5173`.
+
+> **Note:** Opening `index.html` directly via `file://` will not work due to
+> browser restrictions on cross-origin requests.
 
 ---
 
