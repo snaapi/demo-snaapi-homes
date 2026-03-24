@@ -6,6 +6,10 @@ filtering, save favorites, and watch new listings appear in real-time via SSE.
 **Features demonstrated:** filtering, SSE streaming, relations with `?include`,
 multi-claim auto-injection, public access, role-based access control.
 
+> The demo app is published as a standalone repo with a container image:\
+> **Repo:** https://github.com/snaapi/demo-snaapi-homes\
+> **Package:** https://github.com/snaapi/demo-snaapi-homes/pkgs/container/demo-snaapi-homes
+
 ---
 
 ## Setup
@@ -58,36 +62,30 @@ curl -X POST "http://localhost:5173/console/api/resources/PROPERTIES_RESOURCE_ID
 In the Snaapi console, create a role called `agent`. This role is used for users
 who manage property listings.
 
-### 4. Open the Frontend
+### 4. Run the Demo App
 
-The frontend makes API requests to a Snaapi instance (default
-`http://localhost:5173`). Because the frontend runs on a different port, you
-need to enable CORS in your Snaapi configuration, or use a reverse proxy that
-serves both on the same origin.
+Run the demo frontend using the published container image. The app requires the
+`API_BASE` environment variable to point to your Snaapi instance.
 
-**Option A: Enable CORS (simplest for development)**
-
-Add `http://localhost:4507` (or your frontend port) to the `CORS_ORIGINS`
-environment variable in your Snaapi `.env` file, then serve the frontend:
+Since both the demo app and Snaapi run in containers, `localhost` won't
+resolve to the host machine. Use `host.docker.internal` instead (available on
+macOS and Windows):
 
 ```bash
-# Deno file server (serves on port 4507)
-deno run --allow-net --allow-read jsr:@std/http/file-server .
-
-# Or Python (serves on port 8000 — add http://localhost:8000 to CORS_ORIGINS)
-python3 -m http.server 8000
+docker run -p 3000:80 -e API_BASE=http://host.docker.internal:5173 ghcr.io/snaapi/demo-snaapi-homes
 ```
 
-**Option B: Reverse proxy (same origin, no CORS needed)**
+Then open http://localhost:3000 in your browser.
 
-Configure a reverse proxy (e.g., nginx or Caddy) to serve both the Snaapi API
-and the static frontend from a single origin.
+> **Note:** Add `http://localhost:3000` to the `CORS_ORIGINS` environment
+> variable in your Snaapi configuration so the demo app can make API requests.
 
-Then open the frontend and update the `API_BASE` constant in `index.html` if
-your Snaapi instance isn't running on `http://localhost:5173`.
+**On Linux**, `host.docker.internal` may not be available by default. Use
+`--add-host` to enable it:
 
-> **Note:** Opening `index.html` directly via `file://` will not work due to
-> browser restrictions on cross-origin requests.
+```bash
+docker run -p 3000:80 -e API_BASE=http://host.docker.internal:5173 --add-host=host.docker.internal:host-gateway ghcr.io/snaapi/demo-snaapi-homes
+```
 
 ---
 
