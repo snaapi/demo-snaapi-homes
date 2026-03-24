@@ -186,7 +186,7 @@ fields:
   - resourceName: properties
     name: listed_by
     type: relation
-    required: true
+    required: false
     sortable: false
     searchable: false
     unique: false

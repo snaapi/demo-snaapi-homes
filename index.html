@@ -76,13 +76,18 @@
 
       const state = {
         apiKey: localStorage.getItem("snaapi_homes_key") || "",
+        userName: localStorage.getItem("snaapi_homes_user") || "",
         connected: false,
         properties: [],
         favorites: new Map(),
         total: 0,
+        perPage: 20,
+        page: 1,
         loading: true,
         events: [],
         sseAbort: null,
+        loginError: "",
+        loginLoading: false,
       };
 
       // --- Helpers ---
@@ -120,6 +125,8 @@
 
         const params = new URLSearchParams();
         params.set("_sort", "-price");
+        params.set("_limit", String(state.perPage));
+        params.set("_offset", String((state.page - 1) * state.perPage));
 
         const minPrice = $("filter-min")?.value;
         const maxPrice = $("filter-max")?.value;
@@ -323,23 +330,67 @@
 
       // --- Auth ---
 
-      function connect() {
-        const key = $("api-key-input").value.trim();
-        if (!key) return;
-        state.apiKey = key;
-        state.connected = true;
-        localStorage.setItem("snaapi_homes_key", key);
+      async function login() {
+        const email = $("login-email").value.trim();
+        const password = $("login-password").value.trim();
+        if (!email || !password) return;
+
+        state.loginError = "";
+        state.loginLoading = true;
         renderAuth();
-        loadFavorites();
-        connectSSE();
-        renderGrid();
+
+        try {
+          const res = await fetch(`${API_BASE}/api/auth/token`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            state.loginError = err.message ||
+              "Invalid email or password";
+            state.loginLoading = false;
+            renderAuth();
+            return;
+          }
+
+          const data = await res.json();
+          const token = data.token;
+          const name = data.user?.name || data.user?.email || email;
+
+          state.apiKey = token;
+          state.userName = name;
+          state.connected = true;
+          state.loginLoading = false;
+          state.loginError = "";
+          localStorage.setItem("snaapi_homes_key", token);
+          localStorage.setItem("snaapi_homes_user", name);
+          renderAuth();
+          loadFavorites();
+          connectSSE();
+          renderGrid();
+        } catch (e) {
+          state.loginError =
+            "Connection failed. Is the server running?";
+          state.loginLoading = false;
+          renderAuth();
+        }
       }
 
       function disconnect() {
         state.apiKey = "";
+        state.userName = "";
         state.connected = false;
         state.favorites.clear();
         localStorage.removeItem("snaapi_homes_key");
+        localStorage.removeItem("snaapi_homes_user");
+        // Clear all cookies
+        document.cookie.split(";").forEach((c) => {
+          const name = c.split("=")[0].trim();
+          document.cookie = name +
+            "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+        });
         if (state.sseAbort) state.sseAbort.abort();
         state.sseAbort = null;
         state.events = [];
@@ -351,22 +402,77 @@
       // --- Rendering ---
 
       function renderAuth() {
-        $("auth-section").innerHTML = state.connected
-          ? `<div class="flex items-center gap-3">
-        <span class="flex items-center gap-1.5 text-sm text-emerald-700"><span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>Connected</span>
-        <button onclick="disconnect()" class="text-sm text-slate-500 hover:text-slate-700 underline underline-offset-2">Disconnect</button>
-      </div>`
-          : `<form onsubmit="event.preventDefault(); connect();" class="flex items-center gap-2">
-        <input id="api-key-input" type="password" placeholder="API key or token" value="${state.apiKey}"
-          class="w-48 sm:w-56 px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400">
-        <button type="submit" class="px-3.5 py-1.5 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors">Connect</button>
-      </form>`;
+        if (state.connected) {
+          $("auth-section").innerHTML =
+            `<div class="flex items-center gap-3">
+            <span class="flex items-center gap-1.5 text-sm text-slate-700">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+              ${state.userName}
+            </span>
+            <button onclick="disconnect()" class="text-sm text-slate-500 hover:text-slate-700 underline underline-offset-2">Sign out</button>
+          </div>`;
+        } else {
+          const errHtml = state.loginError
+            ? `<p class="text-xs text-red-500 mt-1">${state.loginError}</p>`
+            : "";
+          $("auth-section").innerHTML = `<div>
+            <form onsubmit="event.preventDefault(); login();" class="flex items-center gap-2">
+              <input id="login-email" type="email" placeholder="Email" required
+                class="w-36 sm:w-44 px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400">
+              <input id="login-password" type="password" placeholder="Password" required
+                class="w-28 sm:w-36 px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400">
+              <button type="submit" ${
+            state.loginLoading ? "disabled" : ""
+          }
+                class="px-3.5 py-1.5 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50">
+                ${state.loginLoading ? "Signing in..." : "Sign in"}
+              </button>
+            </form>
+            ${errHtml}
+          </div>`;
+        }
+      }
+
+      function totalPages() {
+        return Math.max(1, Math.ceil(state.total / state.perPage));
+      }
+
+      function goToPage(p) {
+        state.page = Math.max(1, Math.min(p, totalPages()));
+        fetchProperties();
+      }
+
+      function changePerPage(val) {
+        state.perPage = Number(val);
+        state.page = 1;
+        fetchProperties();
       }
 
       function renderCount() {
-        $("results-count").textContent = `${state.total} propert${
-          state.total === 1 ? "y" : "ies"
-        } found`;
+        const tp = totalPages();
+        const start = state.total === 0
+          ? 0
+          : (state.page - 1) * state.perPage + 1;
+        const end = Math.min(state.page * state.perPage, state.total);
+        $("results-count").innerHTML =
+          `<div class="flex items-center justify-between">
+          <span class="text-sm text-slate-500">${start}–${end} of ${state.total} propert${
+            state.total === 1 ? "y" : "ies"
+          }</span>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5">
+              <button onclick="goToPage(state.page - 1)" ${
+            state.page <= 1 ? "disabled" : ""
+          }
+                class="h-8 w-8 flex items-center justify-center rounded-md border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors">&lsaquo;</button>
+              <span class="text-sm text-slate-600 px-1">${state.page} / ${tp}</span>
+              <button onclick="goToPage(state.page + 1)" ${
+            state.page >= tp ? "disabled" : ""
+          }
+                class="h-8 w-8 flex items-center justify-center rounded-md border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors">&rsaquo;</button>
+            </div>
+          </div>
+        </div>`;
       }
 
       function skeletonCard() {
@@ -433,6 +539,11 @@
 
       function renderGrid() {
         const grid = $("property-grid");
+        if (!state.connected) {
+          grid.innerHTML =
+            `<div class="col-span-full py-20 text-center text-slate-400">Sign in to browse properties.</div>`;
+          return;
+        }
         if (state.loading) {
           grid.innerHTML = Array(6).fill(skeletonCard()).join("");
           return;
@@ -468,11 +579,16 @@
       // --- Init ---
 
       document.addEventListener("DOMContentLoaded", () => {
-        renderAuth();
-        fetchProperties();
         if (state.apiKey) {
           state.connected = true;
-          renderAuth();
+          state.loading = true;
+        } else {
+          state.loading = false;
+        }
+        renderAuth();
+        renderGrid();
+        if (state.connected) {
+          fetchProperties();
           loadFavorites();
           connectSSE();
         }
@@ -484,9 +600,42 @@
       <div
         class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between"
       >
-        <h1 class="text-lg font-bold tracking-tight text-slate-900">
-          Snaapi Homes
-        </h1>
+        <div class="flex items-center gap-1.5">
+          <svg
+            style="height: 2.4rem"
+            viewBox="0 0 1400 570"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              fill="none"
+              stroke="#fbbf24"
+              stroke-width="60"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M 105 338 L 315 338 L 105 518"
+            />
+            <path
+              fill="none"
+              stroke="#f59e0b"
+              stroke-width="60"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M 315 53 L 105.000008 233 L 315 233"
+            />
+            <text
+              x="420"
+              y="379"
+              font-family="Outfit, Inter, system-ui, sans-serif"
+              font-size="288"
+              font-weight="600"
+              fill="#0f172a"
+            >
+              Snaapi
+            </text>
+          </svg>
+          <span class="text-lg font-bold tracking-tight text-slate-900"
+          >Homes</span>
+        </div>
         <div id="auth-section"></div>
       </div>
     </header>
@@ -494,33 +643,36 @@
     <!-- Filters -->
     <div class="bg-white border-b border-slate-100">
       <form
-        onsubmit="event.preventDefault(); fetchProperties();"
-        class="max-w-7xl mx-auto px-4 sm:px-6 py-3"
+        onsubmit="event.preventDefault(); state.page = 1; fetchProperties();"
+        class="max-w-7xl mx-auto px-4 sm:px-6 py-2.5"
       >
-        <div class="flex flex-wrap items-end gap-3">
-          <div>
-            <label class="block text-xs text-slate-500 mb-1">Price min</label>
+        <div class="flex items-end gap-3">
+          <div class="flex-1 min-w-0">
+            <label class="block text-xs font-medium text-slate-500 mb-1"
+            >Price min</label>
             <input
               id="filter-min"
               type="number"
               placeholder="0"
-              class="w-28 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+              class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
             >
           </div>
-          <div>
-            <label class="block text-xs text-slate-500 mb-1">Price max</label>
+          <div class="flex-1 min-w-0">
+            <label class="block text-xs font-medium text-slate-500 mb-1"
+            >Price max</label>
             <input
               id="filter-max"
               type="number"
               placeholder="Any"
-              class="w-28 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+              class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
             >
           </div>
-          <div>
-            <label class="block text-xs text-slate-500 mb-1">Beds</label>
+          <div class="shrink-0 w-16">
+            <label class="block text-xs font-medium text-slate-500 mb-1"
+            >Beds</label>
             <select
               id="filter-beds"
-              class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+              class="w-full h-9 px-2 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
             >
               <option value="">Any</option>
               <option value="1">1+</option>
@@ -529,53 +681,64 @@
               <option value="4">4+</option>
             </select>
           </div>
-          <div>
-            <label class="block text-xs text-slate-500 mb-1">Type</label>
-            <div class="flex items-center gap-3 py-1.5">
+          <div class="flex-2 min-w-0">
+            <label class="block text-xs font-medium text-slate-500 mb-1"
+            >Type</label>
+            <div class="flex items-center gap-4 h-9">
               <label
-                class="flex items-center gap-1 text-sm text-slate-600"
-              ><input
+                class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+              >
+                <input
                   type="checkbox"
                   value="house"
-                  class="filter-type rounded text-amber-500 focus:ring-amber-400"
-                >House</label>
+                  class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                >House
+              </label>
               <label
-                class="flex items-center gap-1 text-sm text-slate-600"
-              ><input
+                class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+              >
+                <input
                   type="checkbox"
                   value="condo"
-                  class="filter-type rounded text-amber-500 focus:ring-amber-400"
-                >Condo</label>
+                  class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                >Condo
+              </label>
               <label
-                class="flex items-center gap-1 text-sm text-slate-600"
-              ><input
+                class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+              >
+                <input
                   type="checkbox"
                   value="townhouse"
-                  class="filter-type rounded text-amber-500 focus:ring-amber-400"
-                >Town</label>
+                  class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                >Town
+              </label>
               <label
-                class="flex items-center gap-1 text-sm text-slate-600"
-              ><input
+                class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+              >
+                <input
                   type="checkbox"
                   value="apartment"
-                  class="filter-type rounded text-amber-500 focus:ring-amber-400"
-                >Apt</label>
+                  class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                >Apt
+              </label>
             </div>
           </div>
-          <div>
-            <label class="block text-xs text-slate-500 mb-1">City</label>
+          <div class="flex-1 min-w-0">
+            <label class="block text-xs font-medium text-slate-500 mb-1"
+            >City</label>
             <input
               id="filter-city"
               type="text"
               placeholder="Search city"
-              class="w-32 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+              class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
             >
           </div>
-          <div>
-            <label class="block text-xs text-slate-500 mb-1">Status</label>
+          <div class="flex-1 min-w-0">
+            <label class="block text-xs font-medium text-slate-500 mb-1"
+            >Status</label>
             <select
               id="filter-status"
-              class="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+              class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
             >
               <option value="">Any</option>
               <option value="active" selected>Active</option>
@@ -583,12 +746,29 @@
               <option value="sold">Sold</option>
             </select>
           </div>
-          <button
-            type="submit"
-            class="px-4 py-1.5 text-sm font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors"
-          >
-            Search
-          </button>
+          <div class="shrink-0 w-16">
+            <label class="block text-xs font-medium text-slate-500 mb-1"
+            >Per page</label>
+            <select
+              id="filter-perpage"
+              onchange="changePerPage(this.value)"
+              class="w-full h-9 px-2 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
+            >
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="shrink-0">
+            <button
+              type="submit"
+              class="h-9 px-5 text-sm font-medium bg-slate-800 text-white rounded-md hover:bg-slate-900 transition-colors whitespace-nowrap"
+            >
+              Search
+            </button>
+          </div>
         </div>
       </form>
     </div>

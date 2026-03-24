@@ -28,12 +28,37 @@ curl -X POST http://localhost:5173/v1/_registry/import \
   --data-binary @snaapi-homes-resources.yaml
 ```
 
-### 2. Create the "agent" Role
+### 2. Import Sample Properties
+
+Import 100 sample property listings from the included CSV file:
+
+**Via Web Console:**
+
+1. Navigate to `http://localhost:5173/console/resources/properties`
+2. Click "Import Records" in the toolbar
+3. Upload `sample-properties.csv`
+4. Verify the column mappings in the preview, then confirm the import
+
+**Via API:**
+
+```bash
+curl -X POST "http://localhost:5173/console/api/resources/PROPERTIES_RESOURCE_ID/import-records?action=preview" \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -F "file=@sample-properties.csv"
+
+# Review the preview response, then import:
+curl -X POST "http://localhost:5173/console/api/resources/PROPERTIES_RESOURCE_ID/import-records?action=import" \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -F "file=@sample-properties.csv" \
+  -F 'mappings=[{"originalColumnName":"title","targetField":"title"},{"originalColumnName":"description","targetField":"description"},{"originalColumnName":"price","targetField":"price"},{"originalColumnName":"bedrooms","targetField":"bedrooms"},{"originalColumnName":"bathrooms","targetField":"bathrooms"},{"originalColumnName":"sqft","targetField":"sqft"},{"originalColumnName":"property_type","targetField":"property_type"},{"originalColumnName":"status","targetField":"status"},{"originalColumnName":"image_url","targetField":"image_url"},{"originalColumnName":"address","targetField":"address"},{"originalColumnName":"city","targetField":"city"},{"originalColumnName":"state","targetField":"state"},{"originalColumnName":"zip_code","targetField":"zip_code"}]'
+```
+
+### 3. Create the "agent" Role
 
 In the Snaapi console, create a role called `agent`. This role is used for users
 who manage property listings.
 
-### 3. Open the Frontend
+### 4. Open the Frontend
 
 The frontend makes API requests to a Snaapi instance (default
 `http://localhost:5173`). Because the frontend runs on a different port, you
@@ -220,6 +245,7 @@ ensuring data integrity.
 ## Testing Checklist
 
 - [ ] Import resources via YAML
+- [ ] Import sample properties via CSV (100 records)
 - [ ] Create `agent` role in console
 - [ ] Browse properties without auth (public access)
 - [ ] Filter by price, bedrooms, property type, city
