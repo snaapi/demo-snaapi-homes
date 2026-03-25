@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snaapi Homes</title>
+    <title>Snaapi Homes — Real Estate Demo</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'><path d='M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z'/></svg>"
+      type="image/svg+xml"
+    >
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -50,6 +55,19 @@
       .event-exit {
         animation: fadeOut 0.3s ease-out forwards;
       }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .card-enter {
+        animation: fadeIn 0.2s ease-out;
+      }
       .skeleton {
         background: linear-gradient(
           90deg,
@@ -83,6 +101,7 @@
         total: 0,
         perPage: 20,
         page: 1,
+        sort: "-price",
         loading: true,
         events: [],
         sseAbort: null,
@@ -116,6 +135,34 @@
         return Math.floor(s / 3600) + "h ago";
       }
 
+      function clearFilters() {
+        [
+          "filter-min",
+          "filter-max",
+          "filter-city",
+          "filter-min-mobile",
+          "filter-max-mobile",
+          "filter-city-mobile",
+        ].forEach((id) => {
+          const el = $(id);
+          if (el) el.value = "";
+        });
+        [
+          "filter-beds",
+          "filter-status",
+          "filter-beds-mobile",
+          "filter-status-mobile",
+        ].forEach((id) => {
+          const el = $(id);
+          if (el) el.selectedIndex = 0;
+        });
+        document.querySelectorAll(".filter-type:checked").forEach((
+          cb,
+        ) => cb.checked = false);
+        state.page = 1;
+        fetchProperties();
+      }
+
       // --- API ---
 
       async function fetchProperties() {
@@ -125,15 +172,24 @@
         }
 
         const params = new URLSearchParams();
-        params.set("_sort", "-price");
+        params.set("_sort", state.sort);
         params.set("_limit", String(state.perPage));
         params.set("_offset", String((state.page - 1) * state.perPage));
 
-        const minPrice = $("filter-min")?.value;
-        const maxPrice = $("filter-max")?.value;
-        const beds = $("filter-beds")?.value;
-        const city = $("filter-city")?.value;
-        const status = $("filter-status")?.value;
+        const isMobile = window.innerWidth < 1024;
+        const minPrice = $(
+          isMobile ? "filter-min-mobile" : "filter-min",
+        )?.value;
+        const maxPrice = $(
+          isMobile ? "filter-max-mobile" : "filter-max",
+        )?.value;
+        const beds = $(isMobile ? "filter-beds-mobile" : "filter-beds")
+          ?.value;
+        const city = $(isMobile ? "filter-city-mobile" : "filter-city")
+          ?.value;
+        const status = $(
+          isMobile ? "filter-status-mobile" : "filter-status",
+        )?.value;
 
         if (minPrice) params.set("price__gte", minPrice);
         if (maxPrice) params.set("price__lte", maxPrice);
@@ -449,22 +505,22 @@
             }" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
               <span class="font-medium">${favCount}</span>
             </button>
-            <button onclick="disconnect()" class="text-sm text-slate-500 hover:text-slate-700 underline underline-offset-2">Sign out</button>
+            <button onclick="disconnect()" class="px-2.5 py-1.5 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors">Sign out</button>
           </div>`;
         } else {
           const errHtml = state.loginError
             ? `<p class="text-xs text-red-500 mt-1">${state.loginError}</p>`
             : "";
           $("auth-section").innerHTML = `<div>
-            <form onsubmit="event.preventDefault(); login();" class="flex items-center gap-2">
+            <form onsubmit="event.preventDefault(); login();" class="flex items-center gap-2 flex-wrap">
               <input id="login-email" type="email" placeholder="Email" required
-                class="w-36 sm:w-44 px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400">
+                class="flex-1 min-w-[120px] px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400">
               <input id="login-password" type="password" placeholder="Password" required
-                class="w-28 sm:w-36 px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400">
+                class="flex-1 min-w-[100px] px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400">
               <button type="submit" ${
             state.loginLoading ? "disabled" : ""
           }
-                class="px-3.5 py-1.5 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50">
+                class="px-3.5 py-1.5 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 whitespace-nowrap">
                 ${state.loginLoading ? "Signing in..." : "Sign in"}
               </button>
             </form>
@@ -488,6 +544,12 @@
         fetchProperties();
       }
 
+      function changeSort(val) {
+        state.sort = val;
+        state.page = 1;
+        fetchProperties();
+      }
+
       function renderCount() {
         const tp = totalPages();
         const start = state.total === 0
@@ -495,21 +557,55 @@
           : (state.page - 1) * state.perPage + 1;
         const end = Math.min(state.page * state.perPage, state.total);
         $("results-count").innerHTML =
-          `<div class="flex items-center justify-between">
-          <span class="text-sm text-slate-500">${start}–${end} of ${state.total} propert${
+          `<div class="flex items-center justify-between flex-wrap gap-2">
+          <span class="text-sm font-medium text-slate-700">${start}–${end} of ${state.total} propert${
             state.total === 1 ? "y" : "ies"
           }</span>
           <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1 text-sm text-slate-500">
+              <span class="hidden sm:inline">Sort by</span>
+              <select onchange="changeSort(this.value)" class="h-8 px-1.5 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 transition-colors">
+                ${
+            [
+              ["-price", "Price: High → Low"],
+              ["price", "Price: Low → High"],
+              ["-bedrooms", "Beds: Most"],
+              ["bedrooms", "Beds: Fewest"],
+              ["-sqft", "Size: Largest"],
+              ["sqft", "Size: Smallest"],
+              ["-created_at", "Newest Listed"],
+              ["created_at", "Oldest Listed"],
+            ].map(([val, label]) =>
+              `<option value="${val}" ${
+                val === state.sort ? "selected" : ""
+              }>${label}</option>`
+            ).join("")
+          }
+              </select>
+            </div>
+            <div class="flex items-center gap-1 text-sm text-slate-500">
+              <span class="hidden sm:inline">Show</span>
+              <select onchange="changePerPage(this.value)" class="h-8 px-1.5 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 transition-colors">
+                ${
+            [5, 10, 20, 50, 100].map((n) =>
+              `<option value="${n}" ${
+                n === state.perPage ? "selected" : ""
+              }>${n}</option>`
+            ).join("")
+          }
+              </select>
+              <span class="hidden sm:inline">per page</span>
+            </div>
             <div class="flex items-center gap-1.5">
               <button onclick="goToPage(state.page - 1)" ${
             state.page <= 1 ? "disabled" : ""
           }
-                class="h-8 w-8 flex items-center justify-center rounded-md border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors">&lsaquo;</button>
+                class="h-10 w-10 sm:h-8 sm:w-8 flex items-center justify-center rounded-md border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors">&lsaquo;</button>
               <span class="text-sm text-slate-600 px-1">${state.page} / ${tp}</span>
               <button onclick="goToPage(state.page + 1)" ${
             state.page >= tp ? "disabled" : ""
           }
-                class="h-8 w-8 flex items-center justify-center rounded-md border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors">&rsaquo;</button>
+                class="h-10 w-10 sm:h-8 sm:w-8 flex items-center justify-center rounded-md border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors">&rsaquo;</button>
             </div>
           </div>
         </div>`;
@@ -517,11 +613,14 @@
 
       function skeletonCard() {
         return `<div class="bg-white rounded-xl overflow-hidden border border-slate-100">
-    <div class="skeleton h-48 w-full"></div>
+    <div class="relative">
+      <div class="skeleton aspect-[4/3] w-full"></div>
+      <div class="absolute bottom-3 left-3 skeleton h-5 w-16 rounded-full"></div>
+    </div>
     <div class="p-4 space-y-3">
+      <div class="skeleton h-4 w-3/4 rounded"></div>
       <div class="skeleton h-5 w-24 rounded"></div>
       <div class="skeleton h-4 w-full rounded"></div>
-      <div class="skeleton h-4 w-3/4 rounded"></div>
     </div>
   </div>`;
       }
@@ -530,16 +629,16 @@
         const a = item.attributes;
         const isFav = state.favorites.has(item.id);
         const img = a.image_url
-          ? `<img src="${a.image_url}" alt="${a.title}" class="w-full h-48 object-cover">`
-          : `<div class="w-full h-48 bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+          ? `<img src="${a.image_url}" alt="${a.title}" class="w-full aspect-[4/3] object-cover">`
+          : `<div class="w-full aspect-[4/3] bg-slate-100 flex items-center justify-center">
         <svg class="w-12 h-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
       </div>`;
 
         const statusBadge = a.status === "active"
-          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Active</span>'
+          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-black/5">Active</span>'
           : a.status === "pending"
-          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Pending</span>'
-          : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Sold</span>';
+          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-black/5">Pending</span>'
+          : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 ring-1 ring-black/5">Sold</span>';
 
         const heartBtn = state.connected
           ? `<button onclick="event.stopPropagation(); toggleFavorite('${item.id}')" class="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 hover:bg-white shadow-sm transition-colors" aria-label="Toggle favorite">
@@ -551,26 +650,24 @@
       </button>`
           : "";
 
-        return `<div class="bg-white rounded-xl overflow-hidden border border-slate-100 hover:shadow-md transition-shadow">
+        return `<div class="card-enter bg-white rounded-xl overflow-hidden border border-slate-100 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
     <div class="relative">${img}${heartBtn}
       <div class="absolute bottom-3 left-3">${statusBadge}</div>
     </div>
-    <div class="p-4">
-      <p class="text-xl font-semibold text-slate-900">${
-          fmt(a.price)
-        }</p>
-      <h3 class="mt-1 text-sm font-medium text-slate-700 truncate">${a.title}</h3>
-      <div class="mt-2 flex items-center gap-3 text-xs text-slate-500">
-        <span>${a.bedrooms} bd</span><span class="text-slate-300">|</span>
-        <span>${a.bathrooms} ba</span><span class="text-slate-300">|</span>
+    <div class="p-4 space-y-2">
+      <h3 class="text-sm font-medium text-slate-800 truncate">${a.title}</h3>
+      <p class="text-lg font-bold text-slate-900">${fmt(a.price)}</p>
+      <div class="flex items-center gap-3 text-sm text-slate-500">
+        <span>${a.bedrooms} bd</span><span class="text-slate-300">&middot;</span>
+        <span>${a.bathrooms} ba</span><span class="text-slate-300">&middot;</span>
         <span>${
           a.sqft ? a.sqft.toLocaleString() + " sqft" : "--"
         }</span>
       </div>
-      <p class="mt-2 text-xs text-slate-500 truncate">${a.address}, ${a.city}, ${a.state} ${a.zip_code}</p>
+      <p class="text-xs text-slate-500 line-clamp-2">${a.address}, ${a.city}, ${a.state} ${a.zip_code}</p>
       ${
           a.agent_name
-            ? `<p class="mt-2 text-xs text-slate-400">${a.agent_name}</p>`
+            ? `<p class="text-xs text-slate-500">${a.agent_name}</p>`
             : ""
         }
     </div>
@@ -579,9 +676,11 @@
 
       function renderGrid() {
         const grid = $("property-grid");
+        const houseIcon =
+          `<svg class="w-16 h-16 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>`;
         if (!state.connected) {
           grid.innerHTML =
-            `<div class="col-span-full py-20 text-center text-slate-400">Sign in to browse properties.</div>`;
+            `<div class="col-span-full py-20 text-center">${houseIcon}<p class="text-base font-medium text-slate-500">Sign in to browse properties</p><p class="mt-1 text-sm text-slate-400">Enter your credentials above to get started.</p></div>`;
           return;
         }
         if (state.loading) {
@@ -589,32 +688,51 @@
           return;
         }
         if (!state.properties.length) {
-          const msg = state.showFavoritesOnly
-            ? "No favorites match your current filters."
-            : "No properties found. Try adjusting your filters.";
+          const searchIcon =
+            `<svg class="w-16 h-16 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>`;
+          const heading = state.showFavoritesOnly
+            ? "No favorites found"
+            : "No properties found";
+          const sub = state.showFavoritesOnly
+            ? "Try adjusting your filters or add some favorites."
+            : "Try adjusting your filters or clearing them.";
           grid.innerHTML =
-            `<div class="col-span-full py-20 text-center text-slate-400">${msg}</div>`;
+            `<div class="col-span-full py-20 text-center">${searchIcon}<p class="text-base font-medium text-slate-500">${heading}</p><p class="mt-1 text-sm text-slate-400">${sub}</p></div>`;
           return;
         }
         grid.innerHTML = state.properties.map(propertyCard).join("");
+      }
+
+      function dismissEvent(id) {
+        const el = document.querySelector(`[data-event-id="${id}"]`);
+        if (el) {
+          el.classList.add("event-exit");
+          el.addEventListener("animationend", () => {
+            state.events = state.events.filter((e) => e.id !== id);
+            renderEvents();
+          });
+        }
       }
 
       function renderEvents() {
         const container = $("event-feed");
         container.innerHTML = state.events.map((ev) => {
           const colors = ev.label === "New"
-            ? "bg-emerald-500"
+            ? "bg-emerald-600"
             : ev.label === "Updated"
-            ? "bg-amber-500"
-            : "bg-slate-500";
-          return `<div data-event-id="${ev.id}" class="event-enter flex items-start gap-3 px-4 py-3 bg-white rounded-lg shadow-lg border border-slate-100 max-w-xs">
+            ? "bg-amber-600"
+            : "bg-slate-600";
+          return `<div data-event-id="${ev.id}" class="event-enter flex items-start gap-3 px-4 py-3 bg-white rounded-lg shadow-lg border border-slate-100 max-w-[280px] sm:max-w-xs">
       <span class="shrink-0 mt-0.5 text-xs font-semibold text-white px-2 py-0.5 rounded ${colors}">${ev.label}</span>
-      <div class="min-w-0">
+      <div class="min-w-0 flex-1">
         <p class="text-sm font-medium text-slate-800 truncate">${ev.title}</p>
         <p class="text-xs text-slate-500">${
             ev.price ? fmt(ev.price) : ""
           } &middot; ${timeSince(ev.time)}</p>
       </div>
+      <button onclick="dismissEvent(${ev.id})" class="shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors" aria-label="Dismiss">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>`;
         }).join("");
       }
@@ -684,133 +802,273 @@
     </header>
 
     <!-- Filters -->
-    <div class="bg-white border-b border-slate-100">
+    <div class="bg-white border-b border-slate-200 shadow-sm">
       <form
         onsubmit="event.preventDefault(); state.page = 1; fetchProperties();"
         class="max-w-7xl mx-auto px-4 sm:px-6 py-2.5"
       >
-        <div class="flex items-end gap-3">
-          <div class="flex-1 min-w-0">
-            <label class="block text-xs font-medium text-slate-500 mb-1"
-            >Price min</label>
-            <input
-              id="filter-min"
-              type="number"
-              placeholder="0"
-              class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
+        <!-- Mobile: toggle button -->
+        <div class="flex items-center justify-between lg:hidden">
+          <button
+            type="button"
+            onclick="document.getElementById('filter-panel').classList.toggle('hidden')"
+            class="flex items-center gap-2 h-9 px-3 text-sm font-medium text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-          </div>
-          <div class="flex-1 min-w-0">
-            <label class="block text-xs font-medium text-slate-500 mb-1"
-            >Price max</label>
-            <input
-              id="filter-max"
-              type="number"
-              placeholder="Any"
-              class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
-            >
-          </div>
-          <div class="shrink-0 w-16">
-            <label class="block text-xs font-medium text-slate-500 mb-1"
-            >Beds</label>
-            <select
-              id="filter-beds"
-              class="w-full h-9 px-2 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
-            >
-              <option value="">Any</option>
-              <option value="1">1+</option>
-              <option value="2">2+</option>
-              <option value="3">3+</option>
-              <option value="4">4+</option>
-            </select>
-          </div>
-          <div class="flex-2 min-w-0">
-            <label class="block text-xs font-medium text-slate-500 mb-1"
-            >Type</label>
-            <div class="flex items-center gap-4 h-9">
-              <label
-                class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+              />
+            </svg>
+            Filters
+          </button>
+          <button
+            type="submit"
+            class="h-9 px-5 text-sm font-medium bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors"
+          >
+            Search
+          </button>
+        </div>
+
+        <!-- Mobile: collapsible panel -->
+        <div id="filter-panel" class="hidden lg:!block mt-3 lg:mt-0">
+          <!-- Desktop: horizontal row -->
+          <div class="hidden lg:flex items-end gap-3">
+            <div class="flex-1 min-w-0">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Price min</label>
+              <input
+                id="filter-min"
+                type="number"
+                placeholder="0"
+                class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
               >
-                <input
-                  type="checkbox"
-                  value="house"
-                  class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
-                >House
-              </label>
-              <label
-                class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+            </div>
+            <div class="flex-1 min-w-0">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Price max</label>
+              <input
+                id="filter-max"
+                type="number"
+                placeholder="Any"
+                class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
               >
-                <input
-                  type="checkbox"
-                  value="condo"
-                  class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
-                >Condo
-              </label>
-              <label
-                class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+            </div>
+            <div class="shrink-0 w-16">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Beds</label>
+              <select
+                id="filter-beds"
+                class="w-full h-9 px-2 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
               >
-                <input
-                  type="checkbox"
-                  value="townhouse"
-                  class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
-                >Town
-              </label>
-              <label
-                class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+                <option value="">Any</option>
+                <option value="1">1+</option>
+                <option value="2">2+</option>
+                <option value="3">3+</option>
+                <option value="4">4+</option>
+              </select>
+            </div>
+            <div class="min-w-0">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Type</label>
+              <div
+                class="flex items-center gap-3 h-9 px-3 border border-slate-200 rounded-md bg-white"
               >
-                <input
-                  type="checkbox"
-                  value="apartment"
-                  class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
-                >Apt
-              </label>
+                <label
+                  class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+                >
+                  <input
+                    type="checkbox"
+                    value="house"
+                    class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                  >House
+                </label>
+                <label
+                  class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+                >
+                  <input
+                    type="checkbox"
+                    value="condo"
+                    class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                  >Condo
+                </label>
+                <label
+                  class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+                >
+                  <input
+                    type="checkbox"
+                    value="townhouse"
+                    class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                  >Town
+                </label>
+                <label
+                  class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+                >
+                  <input
+                    type="checkbox"
+                    value="apartment"
+                    class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                  >Apt
+                </label>
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >City</label>
+              <input
+                id="filter-city"
+                type="text"
+                placeholder="Search city"
+                class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
+              >
+            </div>
+            <div class="flex-1 min-w-0">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Status</label>
+              <select
+                id="filter-status"
+                class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
+              >
+                <option value="">Any</option>
+                <option value="active" selected>Active</option>
+                <option value="pending">Pending</option>
+                <option value="sold">Sold</option>
+              </select>
+            </div>
+            <div class="shrink-0 flex items-end gap-2">
+              <button
+                type="submit"
+                class="h-9 px-5 text-sm font-medium bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors whitespace-nowrap"
+              >
+                Search
+              </button>
+              <button
+                type="button"
+                onclick="clearFilters()"
+                class="h-9 text-sm text-slate-500 hover:text-slate-700 underline underline-offset-2 whitespace-nowrap"
+              >
+                Clear
+              </button>
             </div>
           </div>
-          <div class="flex-1 min-w-0">
-            <label class="block text-xs font-medium text-slate-500 mb-1"
-            >City</label>
-            <input
-              id="filter-city"
-              type="text"
-              placeholder="Search city"
-              class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
-            >
-          </div>
-          <div class="flex-1 min-w-0">
-            <label class="block text-xs font-medium text-slate-500 mb-1"
-            >Status</label>
-            <select
-              id="filter-status"
-              class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
-            >
-              <option value="">Any</option>
-              <option value="active" selected>Active</option>
-              <option value="pending">Pending</option>
-              <option value="sold">Sold</option>
-            </select>
-          </div>
-          <div class="shrink-0 w-16">
-            <label class="block text-xs font-medium text-slate-500 mb-1"
-            >Per page</label>
-            <select
-              id="filter-perpage"
-              onchange="changePerPage(this.value)"
-              class="w-full h-9 px-2 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
-            >
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="20" selected>20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
-          <div class="shrink-0">
-            <button
-              type="submit"
-              class="h-9 px-5 text-sm font-medium bg-slate-800 text-white rounded-md hover:bg-slate-900 transition-colors whitespace-nowrap"
-            >
-              Search
-            </button>
+
+          <!-- Mobile: 2-column grid -->
+          <div class="grid grid-cols-2 gap-3 lg:hidden">
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Price min</label>
+              <input
+                id="filter-min-mobile"
+                type="number"
+                placeholder="0"
+                class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
+              >
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Price max</label>
+              <input
+                id="filter-max-mobile"
+                type="number"
+                placeholder="Any"
+                class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
+              >
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Beds</label>
+              <select
+                id="filter-beds-mobile"
+                class="w-full h-9 px-2 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
+              >
+                <option value="">Any</option>
+                <option value="1">1+</option>
+                <option value="2">2+</option>
+                <option value="3">3+</option>
+                <option value="4">4+</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Status</label>
+              <select
+                id="filter-status-mobile"
+                class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
+              >
+                <option value="">Any</option>
+                <option value="active" selected>Active</option>
+                <option value="pending">Pending</option>
+                <option value="sold">Sold</option>
+              </select>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >City</label>
+              <input
+                id="filter-city-mobile"
+                type="text"
+                placeholder="Search city"
+                class="w-full h-9 px-3 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
+              >
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-slate-500 mb-1.5"
+              >Type</label>
+              <div class="flex items-center gap-4 flex-wrap">
+                <label
+                  class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    value="house"
+                    class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                  >House
+                </label>
+                <label
+                  class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    value="condo"
+                    class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                  >Condo
+                </label>
+                <label
+                  class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    value="townhouse"
+                    class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                  >Town
+                </label>
+                <label
+                  class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    value="apartment"
+                    class="filter-type w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400/40"
+                  >Apt
+                </label>
+              </div>
+            </div>
+            <div class="col-span-2 flex items-center justify-end gap-3 pt-1">
+              <button
+                type="button"
+                onclick="clearFilters()"
+                class="text-sm text-slate-500 hover:text-slate-700 underline underline-offset-2"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </div>
       </form>
@@ -826,10 +1084,18 @@
       </div>
     </main>
 
+    <!-- Footer -->
+    <footer class="py-6 text-center text-xs text-slate-400">
+      Powered by <a
+        href="https://snaapi.dev"
+        class="text-amber-600 hover:text-amber-700 font-medium"
+      >Snaapi</a>
+    </footer>
+
     <!-- Event Feed -->
     <div
       id="event-feed"
-      class="fixed bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none [&>*]:pointer-events-auto"
+      class="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 flex flex-col gap-2.5 z-50 pointer-events-none *:pointer-events-auto"
     >
     </div>
   </body>
