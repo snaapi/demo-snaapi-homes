@@ -66,27 +66,18 @@ who manage property listings.
 ### 4. Run the Demo App
 
 Run the demo frontend using the published container image. The app requires the
-`API_BASE` environment variable to point to your Snaapi instance.
-
-Since both the demo app and Snaapi run in containers, `localhost` won't resolve
-to the host machine. Use `host.docker.internal` instead (available on macOS and
-Windows):
+`API_BASE` environment variable to point to your Snaapi instance. Since
+`API_BASE` is used for client-side requests from the browser, it should be the
+address where your browser can reach Snaapi:
 
 ```bash
-docker run -p 4000:80 -e API_BASE=http://host.docker.internal:5173 ghcr.io/snaapi/demo-snaapi-homes
+docker run -p 4000:80 -e API_BASE=http://localhost:5173 ghcr.io/snaapi/demo-snaapi-homes
 ```
 
 Then open http://localhost:4000 in your browser.
 
 > **Note:** Add `http://localhost:4000` to the `CORS_ORIGINS` environment
 > variable in your Snaapi configuration so the demo app can make API requests.
-
-**On Linux**, `host.docker.internal` may not be available by default. Use
-`--add-host` to enable it:
-
-```bash
-docker run -p 4000:80 -e API_BASE=http://host.docker.internal:5173 --add-host=host.docker.internal:host-gateway ghcr.io/snaapi/demo-snaapi-homes
-```
 
 ---
 
