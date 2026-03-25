@@ -73,19 +73,19 @@ to the host machine. Use `host.docker.internal` instead (available on macOS and
 Windows):
 
 ```bash
-docker run -p 3000:80 -e API_BASE=http://host.docker.internal:5173 ghcr.io/snaapi/demo-snaapi-homes
+docker run -p 4000:80 -e API_BASE=http://host.docker.internal:5173 ghcr.io/snaapi/demo-snaapi-homes
 ```
 
-Then open http://localhost:3000 in your browser.
+Then open http://localhost:4000 in your browser.
 
-> **Note:** Add `http://localhost:3000` to the `CORS_ORIGINS` environment
+> **Note:** Add `http://localhost:4000` to the `CORS_ORIGINS` environment
 > variable in your Snaapi configuration so the demo app can make API requests.
 
 **On Linux**, `host.docker.internal` may not be available by default. Use
 `--add-host` to enable it:
 
 ```bash
-docker run -p 3000:80 -e API_BASE=http://host.docker.internal:5173 --add-host=host.docker.internal:host-gateway ghcr.io/snaapi/demo-snaapi-homes
+docker run -p 4000:80 -e API_BASE=http://host.docker.internal:5173 --add-host=host.docker.internal:host-gateway ghcr.io/snaapi/demo-snaapi-homes
 ```
 
 ---
@@ -235,7 +235,7 @@ ensuring data integrity.
 
 ## Testing the SSE Stream
 
-1. Open `http://localhost:3000` in one browser tab and sign in
+1. Open `http://localhost:4000` in one browser tab and sign in
 2. Open a second tab or use curl to create a new property as an agent
 3. Watch the live activity feed in the first tab update in real-time
 
