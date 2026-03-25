@@ -301,11 +301,18 @@
         try {
           if (state.favorites.has(propertyId)) {
             const favId = state.favorites.get(propertyId);
-            await fetch(`${API_BASE}/v1/favorites/${favId}`, {
-              method: "DELETE",
-              headers: headers(true),
-            });
-            state.favorites.delete(propertyId);
+            const res = await fetch(
+              `${API_BASE}/v1/favorites/${favId}`,
+              {
+                method: "DELETE",
+                headers: headers(true),
+              },
+            );
+            if (res.ok) {
+              state.favorites.delete(propertyId);
+            } else {
+              console.error("Failed to delete favorite:", res.status);
+            }
           } else {
             const res = await fetch(`${API_BASE}/v1/favorites`, {
               method: "POST",
@@ -315,6 +322,8 @@
             if (res.ok) {
               const json = await res.json();
               state.favorites.set(propertyId, json.data.id);
+            } else {
+              console.error("Failed to add favorite:", res.status);
             }
           }
           renderAuth();
@@ -701,9 +710,9 @@
           : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 ring-1 ring-black/5">Sold</span>';
 
         const heartBtn = state.connected
-          ? `<button onclick="event.stopPropagation(); toggleFavorite('${
-            esc(item.id)
-          }')" class="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 hover:bg-white shadow-sm transition-colors ${
+          ? `<button onclick='event.stopPropagation(); toggleFavorite(${
+            JSON.stringify(item.id)
+          })' class="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 hover:bg-white shadow-sm transition-colors ${
             isFav ? "heart-pop" : ""
           }" aria-label="${isFav ? "Remove from" : "Add to"} favorites">
         <svg class="w-5 h-5 ${
