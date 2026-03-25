@@ -8,7 +8,8 @@ multi-claim auto-injection, public access, role-based access control.
 
 > The demo app is published as a standalone repo with a container image:\
 > **Repo:** https://github.com/snaapi/demo-snaapi-homes\
-> **Package:** https://github.com/snaapi/demo-snaapi-homes/pkgs/container/demo-snaapi-homes
+> **Package:**
+> https://github.com/snaapi/demo-snaapi-homes/pkgs/container/demo-snaapi-homes
 
 ---
 
@@ -67,9 +68,9 @@ who manage property listings.
 Run the demo frontend using the published container image. The app requires the
 `API_BASE` environment variable to point to your Snaapi instance.
 
-If your Snaapi instance is running directly on your host machine and you run the
-demo app in Docker on macOS or Windows, `localhost` inside the container will not
-resolve to the host. In that case, use `host.docker.internal`:
+Since both the demo app and Snaapi run in containers, `localhost` won't resolve
+to the host machine. Use `host.docker.internal` instead (available on macOS and
+Windows):
 
 ```bash
 docker run -p 3000:80 -e API_BASE=http://host.docker.internal:5173 ghcr.io/snaapi/demo-snaapi-homes
