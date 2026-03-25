@@ -235,7 +235,7 @@ ensuring data integrity.
 
 ## Testing the SSE Stream
 
-1. Open `index.html` in one browser tab and sign in
+1. Open `http://localhost:3000` in one browser tab and sign in
 2. Open a second tab or use curl to create a new property as an agent
 3. Watch the live activity feed in the first tab update in real-time
 
